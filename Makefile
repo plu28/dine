@@ -1,11 +1,15 @@
 CC = gcc
 CFLAGS = -Wall -g
-TARGETS = dine
+TARGETS = dine 
 
 all: $(TARGETS)
 
-dine: dine.c
-	$(CC) $(CFLAGS) -o $@ $^
+dine: dine.c dawdle.o
+	$(CC) $(CFLAGS) -o $@ $^ -lpthread
+
+dawdle.o: dawdle.c
+	$(CC) $(CFLAGS) -c $^
 
 clean:
 	rm $(TARGETS)
+	rm -dr dine.dSYM
