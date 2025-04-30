@@ -6,29 +6,110 @@
 #include <string.h>
 
 #ifndef NUM_PHILOSOPHERS
-#define NUM_PHILOSOPHERS 5
+#define NUM_PHILOSOPHERS 62 // >62 overflows ASCII table
 #endif
 
 #ifndef DEFAULT_CYCLE_COUNT
 #define DEFAULT_CYCLE_COUNT 1
 #endif
 
-typedef int semaphore; // A semaphore is just an integer
+static size_t cycle_count = DEFAULT_CYCLE_COUNT;
 
 void dawdle();
 
+// Every philosopher needs to see its forks
+// And know its name
+typedef struct phil_arg {
+  char name;
+  sem_t **forks;
+} phil_arg;
+
 void *philosopher(void *arg) {
-  char name = *(char *)arg;
+  int i;
+
+  // Unpacking the argument
+  phil_arg *phil_stuff = (phil_arg *)arg;
+  char name = phil_stuff->name;
+  sem_t **forks = phil_stuff->forks;
+
+  // Getting our forks
+  size_t leftfork_idx = name - 65;
+
+  // Handles case where the last philosophers right fork is the 1st
+  // philosophers left fork.
+  size_t rightfork_idx;
+  if (leftfork_idx == NUM_PHILOSOPHERS - 1) {
+    rightfork_idx = 0;
+  } else {
+    rightfork_idx = leftfork_idx + 1;
+  }
+
+  sem_t *leftfork = forks[leftfork_idx];
+  sem_t *rightfork = forks[rightfork_idx];
 
   printf("Philosopher %c entered.\n", name);
-  dawdle();
-  printf("Philosopher %c exited.\n", name);
 
+  // States:
+  // No forks, trying to acquire fork
+  // 1 fork, trying to acquire other fork
+  // Both forks acquired, trying to eat
+  // Done eating, both forks still in hand
+  // Released 1 fork, going to release other
+  // Released both forks,
+
+  for (i = 0; i < cycle_count; i++) {
+    // Even philosophers first pickup right fork
+    // Odd philosophers first pickup left fork
+    if (name % 2 == 0) {
+      sem_wait(rightfork);
+      // TODO: Print 1st fork acquired
+      sem_wait(leftfork);
+      // TODO: Print 2nd fork acquired
+
+      // TODO: Print eating with all forks
+      dawdle();
+      // TODO: Print done eating (just holding both forks)
+
+      sem_post(leftfork);
+      // TODO: Print returned the 2nd fork
+
+      sem_post(rightfork);
+      // TODO: Print returned the 1st fork
+
+      // TODO: Print thinking
+      dawdle();
+      // TODO: Print done thinking (doing nothing)
+
+    } else {
+      sem_wait(leftfork);
+      // TODO: Print 1st fork acquired
+      sem_wait(rightfork);
+      // TODO: Print 2nd fork acquired
+
+      // TODO: Print eating with all forks
+      dawdle();
+      // TODO: Print done eating (just holding both forks)
+
+      sem_post(rightfork);
+      // TODO: Print returned the 2nd fork
+
+      sem_post(leftfork);
+      // TODO: Print returned the 1st fork
+
+      // TODO: Print thinking
+      dawdle();
+      // TODO: Print done thinking (doing nothing)
+    }
+  }
+
+  // Philosopher has to release their stuff.
+  free(phil_stuff);
+
+  printf("Philosopher %c exited.\n", name);
   return NULL;
 }
 
 int main(int argc, char *argv[]) {
-  size_t cycle_count = DEFAULT_CYCLE_COUNT;
   int i;
 
   if (argc > 1) {
@@ -86,8 +167,13 @@ int main(int argc, char *argv[]) {
   // Spawn philosopher threads
   pthread_t thread_id[NUM_PHILOSOPHERS]; // Where to store thread ids
   for (i = 0; i < NUM_PHILOSOPHERS; i++) {
-    char name = 'A' + i;
-    res = pthread_create(thread_id + i, NULL, philosopher, (void *)&name);
+
+    // Creating the data a philosopher will need
+    phil_arg *phil_stuff = (phil_arg *)malloc(sizeof(phil_arg));
+    phil_stuff->name = 'A' + i;
+    phil_stuff->forks = forks;
+
+    res = pthread_create(thread_id + i, NULL, philosopher, (void *)phil_stuff);
   }
 
   // Let the philosophers finish
@@ -103,4 +189,6 @@ int main(int argc, char *argv[]) {
   sem_destroy(print_sem);
   free(print_sem);
   free(forks);
+
+  return 0;
 }
