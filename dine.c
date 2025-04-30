@@ -6,7 +6,7 @@
 #include <string.h>
 
 #ifndef NUM_PHILOSOPHERS
-#define NUM_PHILOSOPHERS 62 // >62 overflows ASCII table
+#define NUM_PHILOSOPHERS 5 // >62 overflows ASCII table
 #endif
 
 #ifndef DEFAULT_CYCLE_COUNT
@@ -16,6 +16,7 @@
 static size_t cycle_count = DEFAULT_CYCLE_COUNT;
 
 void dawdle();
+void print_header();
 
 // Every philosopher needs to see its forks
 // And know its name
@@ -114,7 +115,6 @@ int main(int argc, char *argv[]) {
 
   if (argc > 1) {
     // command line argument passed with a specified cycle count
-    printf("argv[1]=%s\n", argv[1]);
     char *endptr;
     long new_cycle_count = strtol(argv[1], &endptr, 10);
     if (argv[1] == endptr) {
@@ -164,6 +164,9 @@ int main(int argc, char *argv[]) {
     exit(EXIT_FAILURE);
   }
 
+  // Print out the header
+  print_header();
+
   // Spawn philosopher threads
   pthread_t thread_id[NUM_PHILOSOPHERS]; // Where to store thread ids
   for (i = 0; i < NUM_PHILOSOPHERS; i++) {
@@ -191,4 +194,23 @@ int main(int argc, char *argv[]) {
   free(forks);
 
   return 0;
+}
+
+// Prints out the philosopher header
+void print_header() {
+  int i;
+
+  printf("|");
+  for (i = 0; i < NUM_PHILOSOPHERS; i++) {
+    printf("=============|");
+  }
+  printf("\n|");
+  for (i = 0; i < NUM_PHILOSOPHERS; i++) {
+    printf("      %c      |", 'A' + i);
+  }
+  printf("\n|");
+  for (i = 0; i < NUM_PHILOSOPHERS; i++) {
+    printf("=============|");
+  }
+  printf("\n");
 }
