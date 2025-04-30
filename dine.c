@@ -6,17 +6,24 @@
 #include <string.h>
 
 #ifndef NUM_PHILOSOPHERS
-#define NUM_PHILOSOPHERS 5 // >62 overflows ASCII table
+#define NUM_PHILOSOPHERS 5 // >62 overflows ASCII table. <2 seg faults
 #endif
 
 #ifndef DEFAULT_CYCLE_COUNT
 #define DEFAULT_CYCLE_COUNT 1
 #endif
 
+// Size of a philosopher column independent of fork amount
+#ifndef PHILOSOPHER_PRINT_SPACE_BASE
+#define PHILOSOPHER_PRINT_SPACE_BASE 9
+#endif
+
 static size_t cycle_count = DEFAULT_CYCLE_COUNT;
+static char *status_line = NULL; // Null to start
 
 void dawdle();
 void print_header();
+void print_status(size_t start, char *str);
 
 // Every philosopher needs to see its forks
 // And know its name
@@ -125,6 +132,11 @@ int main(int argc, char *argv[]) {
     cycle_count = (size_t)new_cycle_count;
   }
 
+  if (NUM_PHILOSOPHERS < 2) {
+    printf("At least 2 philosophers required.\n");
+    exit(EXIT_FAILURE);
+  }
+
   // Allocate forks (semaphores) for philosophers on heap
   sem_t **forks = (sem_t **)malloc(sizeof(sem_t *) * NUM_PHILOSOPHERS);
   if (!forks) {
@@ -173,6 +185,10 @@ int main(int argc, char *argv[]) {
 
     // Creating the data a philosopher will need
     phil_arg *phil_stuff = (phil_arg *)malloc(sizeof(phil_arg));
+    if (!phil_stuff) {
+      perror("malloc: phil_stuff");
+      exit(EXIT_FAILURE);
+    }
     phil_stuff->name = 'A' + i;
     phil_stuff->forks = forks;
 
@@ -192,25 +208,120 @@ int main(int argc, char *argv[]) {
   sem_destroy(print_sem);
   free(print_sem);
   free(forks);
+  free(status_line);
 
   return 0;
 }
 
 // Prints out the philosopher header
+// Stretches according to the number of forks
 void print_header() {
   int i;
+  int j;
 
+  // The margin in between two philosopher columns
+  // PHILOSOPHER_PRINT_SPACE_BASE include the | at the end,
+  // so remove it (-1).
+  int margin_space = PHILOSOPHER_PRINT_SPACE_BASE + NUM_PHILOSOPHERS - 1;
+
+  // Top line of header
   printf("|");
   for (i = 0; i < NUM_PHILOSOPHERS; i++) {
-    printf("=============|");
+    for (j = 0; j < margin_space; j++) {
+      printf("=");
+    }
+    printf("|");
   }
+
+  // Middle line of header
   printf("\n|");
   for (i = 0; i < NUM_PHILOSOPHERS; i++) {
-    printf("      %c      |", 'A' + i);
+    if (margin_space % 2 == 0) {
+      for (j = 0; j < (margin_space / 2) - 1; j++) {
+        printf(" ");
+      }
+      printf("%c", 'A' + i);
+      for (j = 0; j < (margin_space / 2); j++) {
+        printf(" ");
+      }
+      printf("|");
+    } else {
+      for (j = 0; j < (margin_space / 2); j++) {
+        printf(" ");
+      }
+      printf("%c", 'A' + i);
+      for (j = 0; j < (margin_space / 2); j++) {
+        printf(" ");
+      }
+      printf("|");
+    }
   }
+
+  // Bottom line of header
   printf("\n|");
   for (i = 0; i < NUM_PHILOSOPHERS; i++) {
-    printf("=============|");
+    for (j = 0; j < margin_space; j++) {
+      printf("=");
+    }
+    printf("|");
   }
   printf("\n");
+
+  // Initialize the status line.
+  print_status(0, NULL);
+}
+
+// Prints out the status line
+// Must be initialized first to allocate memory for the status line.
+// Free'd from main
+// start: where to modify from
+// str: what to modify to
+
+// status_line[2:NUM_PHILOSOPHERS + 1]
+// ^^^ Part of status line with forks (inclusive)
+
+// status_line[NUM_PHILOSOPHERS + 4:NUM_PHILOSOPHERS + 8]
+// ^^^ Eat/Think part (inclusive)
+void print_status(size_t start, char *str) {
+  int i;
+  int j;
+
+  // Edge case: Printing initial status line with no change in state
+  if (status_line == NULL) {
+    size_t status_line_size =
+        (PHILOSOPHER_PRINT_SPACE_BASE + NUM_PHILOSOPHERS) * NUM_PHILOSOPHERS + 3; // +3 for null terminator, newline, and final |
+    status_line = (char *)malloc(sizeof(char) * status_line_size);
+    if (!status_line) {
+      perror("malloc: status_line");
+      exit(EXIT_FAILURE);
+    }
+
+    size_t margin_space = PHILOSOPHER_PRINT_SPACE_BASE + NUM_PHILOSOPHERS;
+    // Set the status_line to be blank
+    // i * margin_space is the column offset
+    for (i = 0; i < NUM_PHILOSOPHERS; i++) {
+      size_t base = i * margin_space;
+
+      // Printing start of column
+      status_line[0 + base] = '|';
+      status_line[1 + base] = ' ';
+
+      // Printing for fork placeholders
+      for (j = 2; j < NUM_PHILOSOPHERS + 2; j++) {
+        status_line[j + base] = '-';
+      }
+      
+      // 7 spaces after fork placeholders
+      // 2 is past the '| ' at the start of the column
+      int space_count = PHILOSOPHER_PRINT_SPACE_BASE - 2;
+      for (j = 0; j < space_count; j++) {
+        status_line[j + NUM_PHILOSOPHERS + base + 2] = ' ';
+      }
+    }
+    // Pipe and newline at the end
+    status_line[status_line_size - 3] = '|';
+    status_line[status_line_size - 2] = '\n';
+    status_line[status_line_size - 1] = '\0';
+  }
+  printf("%s", status_line);
 }
